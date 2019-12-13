@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
+
 set -e
 
-# Sudo _explicitly_ filters out PYTHONPATH, even when env_reset is disabled. but we want it
-[[ $UID == ${ASTRONOMER_UID:-1000} ]] || exec sudo -H -u ${ASTRONOMER_USER} PYTHONPATH=$PYTHONPATH "$0" "$@"
-# Make sure logs folder is writable by the right user.
-[ -O "$AIRFLOW_HOME/logs" ] || sudo chown $ASTRONOMER_USER "$AIRFLOW_HOME/logs"
+# Compatibility with older helm charts that used to run crond.
+if [[ "$1" == "crond" ]]; then
+  exec /usr/local/bin/clean-airflow-logs
+fi
 
 # Airflow subcommand
 CMD=$2
@@ -28,6 +29,10 @@ if [[ -n $AIRFLOW__CELERY__BROKER_URL ]] && [[ $CMD =~ ^(scheduler|worker|flower
   while ! nc -w 1 -z "${HOST}" "${PORT}"; do
     sleep 0.001
   done
+fi
+
+if [[ $CMD == "webserver" ]]; then
+  airflow sync_perm
 fi
 
 # Run the original command
